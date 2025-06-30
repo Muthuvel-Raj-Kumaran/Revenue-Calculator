@@ -1,2 +1,2 @@
 # Revenue-Calculator
-Revenue-Calculator for Turbo &amp; Live Games
+Client Dashboard Revenue Calculator For Single player games
