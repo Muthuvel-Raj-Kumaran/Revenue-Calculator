@@ -40,7 +40,7 @@
   <div class="container py-5">
     <div class="card shadow-sm mx-auto" style="max-width: 750px;">
       <div class="card-body">
-        <h3 class="text-center text-primary mb-4">Revenue Calculator For Turbo & Live Games</h3>
+        <h3 class="text-center text-primary mb-4">Revenue Calculator For Client Dashboard</h3>
 
         <form id="revenueForm">
   <div class="mb-3">
@@ -51,19 +51,20 @@
   <div class="row g-3">
     <div class="col-md-6">
       <label for="username" class="form-label">Username</label>
-      <input type="text" class="form-control" id="username" name="username" required>
+      <input type="text" class="form-control" id="username" name="username" placeholder="rumblebets">
     </div>
     <div class="col-md-6">
       <label for="password" class="form-label">Password</label>
-      <input type="password" class="form-control" id="password" name="password" required>
+      <input type="password" class="form-control" id="password" name="password" placeholder="...123"required>
     </div>
   </div>
 
   <div class="row g-3 mt-1">
     <div class="col-md-6">
       <label for="game_filter" class="form-label">Game Filter</label>
-      <input type="text" class="form-control" id="game_filter" name="game_filter" required>
+      <input type="text" class="form-control" id="game_filter" name="game_filter" placeholder="eg: hilo" required>
     </div>
+
     <div class="col-md-6">
       <label for="page_type" class="form-label">Select Page</label>
       <select class="form-select" id="page_type" name="page_type" required>
@@ -71,11 +72,18 @@
         <option value="transactions">Transactions</option>
       </select>
     </div>
-  </div>
+
+    <div class="col-md-6">
+      <label for="game_type" class="form-label">Game Type</label>
+      <select id="game_type" name="game_type">
+        <option value="singleplayer">SinglePlayer</option>
+        <option value="multiplayer">MultiPlayer</option>
+      </select>
+    </div>
 
   <div class="mb-3 mt-3" id="otpSection" style="display: none;">
-  <label for="otp" class="form-label">Enter OTP</label>
-  <input type="text" class="form-control" id="otp" name="otp">
+    <label for="otp" class="form-label">Enter OTP</label>
+    <input type="text" class="form-control" id="otp" name="otp">
   </div>
 
 

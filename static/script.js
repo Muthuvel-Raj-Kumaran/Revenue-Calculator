@@ -6,28 +6,42 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBtn = document.getElementById('clearBtn');
   const otpSection = document.getElementById('otpSection');
   const output = document.getElementById('output');
+  const pageType = document.getElementById('page_type');
+  const gameType = document.getElementById('game_type');
 
-  let controller = null;  // For aborting fetch
+  let controller = null;
   let reading = false;
 
-  // Helper: append text to output pre with auto scroll
+  // Disable game type dropdown if Match History is selected
+  pageType.addEventListener('change', () => {
+    gameType.disabled = pageType.value === 'match_history';
+  });
+
   function appendOutput(text) {
     output.textContent += text;
     output.scrollTop = output.scrollHeight;
   }
 
-  // Reset UI state
+  function setFormDisabled(state) {
+    const elements = form.querySelectorAll('input, select, button');
+    elements.forEach(el => {
+      if (el !== stopBtn) el.disabled = state;
+    });
+  }
+
   function resetUI() {
     otpSection.style.display = 'none';
+    setFormDisabled(false);
     calculateBtn.disabled = true;
     loginBtn.disabled = false;
     stopBtn.disabled = true;
+    clearBtn.disabled = false;
+    gameType.disabled = pageType.value === 'match_history';
     reading = false;
   }
 
   resetUI();
 
-  // Login button click
   loginBtn.addEventListener('click', async () => {
     output.textContent = 'Checking login...\n';
     loginBtn.disabled = true;
@@ -48,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else if (data.status === 'otp_required') {
         appendOutput('OTP required. Please enter OTP.\n');
         otpSection.style.display = 'block';
-        calculateBtn.disabled = false; 
+        calculateBtn.disabled = false;
       } else {
         appendOutput(`Login failed: ${data.message || 'Unknown error'}\n`);
         loginBtn.disabled = false;
@@ -59,20 +73,23 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Calculate button submit (form submit)
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     output.textContent = '';
-    calculateBtn.disabled = true;
-    loginBtn.disabled = true;
+
+    const formData = new FormData(form); 
+    setFormDisabled(true); 
     stopBtn.disabled = false;
     reading = true;
 
-    // Abort controller to stop fetch if needed
     controller = new AbortController();
 
+    for (let [key, value] of formData.entries()) {
+    console.log(`${key}: ${value}`);
+  }
+
+
     try {
-      const formData = new FormData(form);
       const res = await fetch('/calculate', {
         method: 'POST',
         body: formData,
@@ -106,25 +123,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Stop button click
   stopBtn.addEventListener('click', () => {
-  if (controller) {
-    controller.abort();
-    controller = null;
-  }
-  stopBtn.disabled = true;
-  reading = false;
-  calculateBtn.disabled = false;
-  loginBtn.disabled = false;
-});
+    if (controller) {
+      controller.abort();
+      controller = null;
+    }
+    stopBtn.disabled = true;
+    reading = false;
+    calculateBtn.disabled = false;
+    loginBtn.disabled = false;
+  });
 
-clearBtn.addEventListener('click', () => {
-  output.textContent = '';
-  reading = false;
-  if (controller) {
-    controller.abort();
-    controller = null;
-  }
-  resetUI();
-});
+  clearBtn.addEventListener('click', () => {
+    output.textContent = '';
+    reading = false;
+    if (controller) {
+      controller.abort();
+      controller = null;
+    }
+    resetUI();
+  });
 });
