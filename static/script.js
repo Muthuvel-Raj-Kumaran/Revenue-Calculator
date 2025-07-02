@@ -8,9 +8,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const output = document.getElementById('output');
   const pageType = document.getElementById('page_type');
   const gameType = document.getElementById('game_type');
+  const logoutBtn = document.getElementById('logoutBtn');
+  logoutBtn.disabled = true;
 
   let controller = null;
   let reading = false;
+  let isLoggedIn = false;
 
   // Disable game type dropdown if Match History is selected
   pageType.addEventListener('change', () => {
@@ -30,15 +33,17 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resetUI() {
-    otpSection.style.display = 'none';
-    setFormDisabled(false);
-    calculateBtn.disabled = true;
-    loginBtn.disabled = false;
-    stopBtn.disabled = true;
-    clearBtn.disabled = false;
-    gameType.disabled = pageType.value === 'match_history';
-    reading = false;
-  }
+  otpSection.style.display = 'none';
+  setFormDisabled(false);
+  stopBtn.disabled = true;
+  clearBtn.disabled = false;
+  gameType.disabled = pageType.value === 'match_history';
+  reading = false;
+
+  calculateBtn.disabled = !isLoggedIn;
+  loginBtn.disabled = isLoggedIn;
+  logoutBtn.disabled = !isLoggedIn;
+}
 
   resetUI();
 
@@ -58,12 +63,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (data.status === 'success') {
         appendOutput('Login successful, now click calculate to check Revenue..!\n');
-        calculateBtn.disabled = false;
-      } else if (data.status === 'otp_required') {
-        appendOutput('OTP required. Please enter OTP.\n');
-        otpSection.style.display = 'block';
-        calculateBtn.disabled = false;
-      } else {
+        isLoggedIn = true;
+        resetUI();
+      }
+    else if (data.status === 'otp_required') {
+      appendOutput('OTP required. Please enter OTP.\n');
+      otpSection.style.display = 'block';
+      isLoggedIn = true;
+      resetUI();
+    }
+    else {
         appendOutput(`Login failed: ${data.message || 'Unknown error'}\n`);
         loginBtn.disabled = false;
       }
@@ -80,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const formData = new FormData(form); 
     setFormDisabled(true); 
     stopBtn.disabled = false;
+    logoutBtn.disabled = true; 
     reading = true;
 
     controller = new AbortController();
@@ -131,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stopBtn.disabled = true;
     reading = false;
     calculateBtn.disabled = false;
-    loginBtn.disabled = false;
+    loginBtn.disabled = !isLoggedIn;
   });
 
   clearBtn.addEventListener('click', () => {
@@ -143,4 +153,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     resetUI();
   });
+});
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  const username = document.getElementById("username").value;
+  const formData = new FormData();
+  formData.append("username", username);
+
+  const res = await fetch("/logout", {
+    method: "POST",
+    body: formData,
+  });
+
+  const result = await res.json();
+  if (result.status === "logged_out") {
+  alert("Logged out successfully.");
+  isLoggedIn = false; 
+  location.reload();  
+}
+ else {
+    alert("No active session to logout.");
+  }
 });

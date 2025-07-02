@@ -11,6 +11,8 @@ import os
 
 app = Flask(__name__)
 
+active_sessions = {} 
+
 @app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
@@ -24,13 +26,15 @@ def check_login():
     url = request.form['url']
     username = request.form['username']
     password = request.form['password']
+
+    if username in active_sessions:
+        return jsonify({"status": "success"})
+
     options = webdriver.ChromeOptions()
-    # options.binary_location = "/usr/bin/chromium"
     options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     driver = webdriver.Chrome(options=options)
-
     wait = WebDriverWait(driver, 10)
 
     try:
@@ -39,18 +43,26 @@ def check_login():
         driver.find_element(By.ID, "txtPassword").send_keys(password + Keys.RETURN)
         time.sleep(2)
 
-        if "otp" in driver.page_source.lower() or driver.find_elements(By.ID, "otp"): 
-            driver.quit()
+        if "otp" in driver.page_source.lower() or driver.find_elements(By.ID, "otp"):
             return jsonify({"status": "otp_required"})
 
-        driver.quit()
+        active_sessions[username] = driver
         return jsonify({"status": "success"})
 
     except Exception as e:
         driver.quit()
         return jsonify({"status": "error", "message": str(e)})
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    username = request.form['username']
+    driver = active_sessions.pop(username, None)
+    if driver:
+        driver.quit()
+        return jsonify({"status": "logged_out"})
+    return jsonify({"status": "no_active_session"})
     
-def selenium_generator_match_history(url, username, password, game_filter, otp=None):
+def selenium_generator_match_history(url, username, password, game_filter, otp=None, driver=None):
     options = webdriver.ChromeOptions()
     # options.binary_location = "/usr/bin/chromium"
     options.add_argument('--headless')
@@ -58,7 +70,9 @@ def selenium_generator_match_history(url, username, password, game_filter, otp=N
     options.add_argument('--disable-dev-shm-usage')
     
 
-    driver = webdriver.Chrome(options=options)
+    if driver is None:
+        yield "No active session. Please login again.\n"
+        return
     wait = WebDriverWait(driver, 15)
 
     yield "Opening login page...\n"
@@ -87,7 +101,7 @@ def selenium_generator_match_history(url, username, password, game_filter, otp=N
             time.sleep(3)
         else:
             yield "OTP required but not provided. Please enter OTP in the form.\n"
-            driver.quit()
+         
             return
         
         yield "OTP verified, continuing to match history...\n"    
@@ -168,16 +182,18 @@ def selenium_generator_match_history(url, username, password, game_filter, otp=N
             yield f"Failed at page {page}: {e}\n"
             break
 
-    driver.quit()
     yield f"\nTotal revenue across all pages: ₹{total_revenue:,.2f}\n"
 
-def selenium_generator_transactions(url, username, password, game_filter, otp=None):
+def selenium_generator_transactions_multiplayer(url, username, password, game_filter, otp=None, driver=None):
     options = webdriver.ChromeOptions()
     # options.binary_location = "/usr/bin/chromium"
     # options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    driver = webdriver.Chrome(options=options)
+
+    if driver is None:
+        yield "No active session. Please login again.\n"
+        return
     wait = WebDriverWait(driver, 15)
 
     yield "Opening login page...\n"
@@ -199,7 +215,7 @@ def selenium_generator_transactions(url, username, password, game_filter, otp=No
             time.sleep(3)
         else:
             yield "OTP required but not provided.\n"
-            driver.quit()
+           
             return
 
     base_url = get_base_url(url)
@@ -340,6 +356,125 @@ def selenium_generator_transactions(url, username, password, game_filter, otp=No
     total_revenue = bot_revenue + total_commission
     yield f"\n Final Revenue: (Win ₹{bot_win:,.2f} - Bet ₹{bot_bet:,.2f}) + Commission ₹{total_commission:,.2f} = ₹{total_revenue:,.2f} \n"
 
+def selenium_generator_transactions_singleplayer(url, username, password, game_filter, otp=None, driver=None):
+    options = webdriver.ChromeOptions()
+    options.binary_location = "/usr/bin/chromium"
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+
+    if driver is None:
+        yield "No active session. Please login again.\n"
+        return
+
+    wait = WebDriverWait(driver, 15)
+
+    yield "Opening login page...\n"
+    driver.get(url)
+
+    wait.until(EC.presence_of_element_located((By.XPATH, '//*[@id="exampleInputEmail1"]')))
+    driver.find_element(By.XPATH, '//*[@id="exampleInputEmail1"]').send_keys(username)
+    driver.find_element(By.XPATH, '//*[@id="txtPassword"]').send_keys(password + Keys.RETURN)
+    time.sleep(2)
+
+    if "otp" in driver.page_source.lower() or len(driver.find_elements(By.ID, "otp")) > 0:
+        if otp:
+            yield "OTP required. Submitting OTP...\n"
+            otp_input = wait.until(EC.presence_of_element_located((By.ID, "otp")))
+            if otp_input.is_displayed() and otp_input.is_enabled():
+                otp_input.send_keys(otp)
+            else:
+                yield "OTP input not interactable, skipping OTP submission.\n"
+
+            try:
+                submit_btn = driver.find_element(By.ID, "submitOTP")  # Adjust if needed
+                submit_btn.click()
+            except:
+                otp_input.send_keys(Keys.RETURN)
+
+            time.sleep(3)
+        else:
+            yield "OTP required but not provided. Please enter OTP in the form.\n"
+            driver.quit()
+            return
+
+    base_url = get_base_url(url)
+    yield "Navigating to transactions page...\n"
+    driver.get(base_url + '/transactions')
+    yield "In transaction page..."
+    time.sleep(1)
+
+     # Select game
+    dropdown_input = driver.find_element(By.XPATH, '//*[@id="game_name"]')
+    dropdown_input.click()
+    time.sleep(1)
+    old_rows = driver.find_elements(By.CSS_SELECTOR, 'table#transactions_table tbody tr')
+    dropdown_input.send_keys(game_filter)
+    dropdown_input.send_keys(Keys.RETURN)
+
+    wait.until(EC.staleness_of(old_rows[0]))
+    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'table#transactions_table tbody tr')))
+
+    headers = driver.find_elements(By.CSS_SELECTOR, 'table#transactions_table thead th')
+    bet_idx = win_idx = None
+    for i, header in enumerate(headers):
+        text = header.text.strip().lower()
+        if text == "bet amount":
+            bet_idx = i
+        elif text == "win amount":
+            win_idx = i
+    if bet_idx is None or win_idx is None:
+        yield "Could not find Bet Amount or Win Amount columns\n"
+        driver.quit()
+        return
+
+    def extract_revenue():
+        revenues = []
+        rows = driver.find_elements(By.CSS_SELECTOR, 'table#transactions_table tbody tr')
+        for idx, row in enumerate(rows, start=1):
+            try:
+                cols = row.find_elements(By.TAG_NAME, 'td')
+                bet_text = cols[bet_idx].text.strip().replace(',', '').replace('₹', '').replace('$', '')
+                win_text = cols[win_idx].text.strip().replace(',', '').replace('₹', '').replace('$', '')
+                bet = float(bet_text)
+                win = float(win_text)
+                revenue = bet - win
+                revenues.append(revenue)
+            except Exception:
+                pass
+        return revenues, rows
+
+    total_revenue = 0.0
+    page = 1
+
+    while True:
+        yield f'Processing page {page}...\n'
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'table#transactions_table tbody tr')))
+        revenues, rows = extract_revenue()
+        page_revenue = sum(revenues)
+        total_revenue += page_revenue
+        yield f"Page {page} revenue: ₹{page_revenue:,.2f}\n"
+
+        try:
+            next_button = driver.find_element(By.ID, 'transactions_table_next')
+            next_button_class = next_button.get_attribute('class')
+
+            if 'disabled' in next_button_class:
+                yield "Reached the last page.\n"
+                break
+
+            driver.execute_script("arguments[0].click();", next_button)
+            wait.until(EC.staleness_of(rows[0]))
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'table#transactions_table tbody tr')))
+            page += 1
+            time.sleep(1)
+
+        except Exception as e:
+            yield f"Failed at page {page}: {e}\n"
+            break
+
+    driver.quit()
+    yield f"\nTotal revenue across all pages: ₹{total_revenue:,.2f}\n"
 
 @app.route('/calculate', methods=['POST'])
 def calculate():
@@ -350,15 +485,25 @@ def calculate():
     page_type = request.form['page_type']
     otp = request.form.get('otp', None)
 
+    driver = active_sessions.get(username)
+    if not driver:
+        return "Session expired or not logged in. Please login again.", 403
+
     if page_type == 'match_history':
-        return Response(selenium_generator_match_history(url, username, password, game_filter, otp),
+        return Response(selenium_generator_match_history(url, username, password, game_filter, otp, driver),
                         mimetype='text/plain')
     elif page_type == 'transactions':
-        return Response(selenium_generator_transactions(url, username, password, game_filter, otp),
-                        mimetype='text/plain')
+      game_type = request.form.get('game_type', 'singleplayer')  
 
+    if game_type == 'singleplayer':
+        return Response(selenium_generator_transactions_singleplayer(url, username, password, game_filter, otp, driver),
+                        mimetype='text/plain')
+    elif game_type == 'multiplayer':
+        return Response(selenium_generator_transactions_multiplayer(url, username, password, game_filter, otp, driver),
+                        mimetype='text/plain')
     else:
-        return "Invalid page type selected", 400
+        return "Invalid game type selected", 400
+
 
 @app.route('/get_games', methods=['POST'])
 def get_games():
